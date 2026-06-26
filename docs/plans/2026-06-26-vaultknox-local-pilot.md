@@ -203,16 +203,24 @@ store_root under /tmp/vaultknox-pilot-...
 
 ```bash
 . /tmp/vaultknox-pilot-env.sh
-FIXTURE_DIR=$(dirname "$VAULTKNOX_HOME")/fixtures
-mkdir -p "$FIXTURE_DIR"
-printf 'token=ghp_111111111111111111111111111111111111\n' > "$FIXTURE_DIR/secret-file.txt"
 cd /home/ubuntu/work/vaultknox-security
-/tmp/vk-fork-venv/bin/python -m vaultknox.scanner "$FIXTURE_DIR" --json > /tmp/vk-pilot-scan.json
 /tmp/vk-fork-venv/bin/python - <<'PY'
 import json
-raw = open('/tmp/vk-pilot-scan.json').read()
-print('raw_secret_present', 'ghp_111111111111111111111111111111111111' in raw)
+import os
+from pathlib import Path
+from vaultknox.scanner import SecretScanner, format_findings_json
+
+secret = 'ghp_111111111111111111111111111111111111'
+fixture_dir = Path(os.environ['PILOT_ROOT']) / 'fixtures'
+fixture_dir.mkdir(parents=True, exist_ok=True)
+fixture = fixture_dir / 'secret-file.env'
+fixture.write_text('token=' + secret + '\n', encoding='utf-8')
+scanner = SecretScanner(paths=[fixture_dir])
+findings, permission_issues, stats = scanner.scan()
+raw = format_findings_json(findings, permission_issues, stats)
+Path('/tmp/vk-pilot-scan.json').write_text(raw, encoding='utf-8')
 d = json.loads(raw)
+print('raw_secret_present', secret in raw)
 print('finding_count', len(d.get('findings', [])))
 for f in d.get('findings', []):
     print('finding_keys', sorted(f.keys()))
